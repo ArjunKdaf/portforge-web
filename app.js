@@ -175,7 +175,7 @@ function renderResult() {
     const d = detection;
     let html = `<div class="card">
         <h3>${esc(d.title)}</h3>
-        <p>${engine.name} — <b>${esc(d.engineName)}</b> (RGSS${d.rgssVersion || "?"}) · runtime <b>${esc(engine.runtime)}</b>
+        <p>${esc(engine.name)}${d.engineName ? ` — <b>${esc(d.engineName)}</b>` : ""}${d.rgssVersion ? ` (RGSS${d.rgssVersion})` : ""} · runtime <b>${esc(engine.runtime)}</b>
         ${d.ownConfig ? '· <span class="ok">ships its own config → self-contained</span>' : ""}</p>
         <p class="dim">port slug <code>${esc(d.slug)}</code> · launcher <code>${esc(d.safe)}.sh</code></p>
     </div>`;

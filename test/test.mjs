@@ -232,4 +232,57 @@ function makeRgssadV1(scriptsBlob) {
     ok("split-asset (MotW format): sibling Audio/ merged into the port");
 }
 
+// --- 10: EasyRPG (RPG Maker 2000/2003) detected & routed by RPG_RT.ldb --------
+{
+    const tree = [
+        { path: "MyGame/RPG_RT.ldb", bytes: b("database") },
+        { path: "MyGame/RPG_RT.lmt", bytes: b("maptree") },
+        { path: "MyGame/RPG_RT.ini", bytes: b("[RPG_RT]\nGameTitle=Space Trip\nFullPackageFlag=1\n") },
+        { path: "MyGame/RPG_RT.exe", bytes: b("MZwindows") },
+        { path: "MyGame/CharSet/hero.png", bytes: png(24, 32) },
+        { path: "MyGame/Title/title.png", bytes: png(320, 240) },
+    ];
+    const r = analyze(tree, engines, {});
+    assert.equal(r.engine.id, "easyrpg", "RPG_RT.ldb → EasyRPG engine");
+    assert.equal(r.detection.title, "Space Trip", "title from RPG_RT.ini GameTitle");
+    assert.equal(r.detection.slug, "spacetrip");
+    assert.equal(r.detection.safe, "Space Trip");
+    assert.equal(r.deps.length, 0, "runtime bundles the free RTP → no user deps");
+    // must NOT be misrouted to the RGSS engines (no RGSS ini/scripts present)
+    assert.notEqual(r.engine.id, "rgss");
+    assert.notEqual(r.engine.id, "rgss-legacy");
+    ok("EasyRPG: RPG_RT.ldb routes to easyrpg, title from RPG_RT.ini, no deps");
+}
+
+// --- 11: EasyRPG plan — game data kept, Windows player stripped, port layout --
+{
+    const tree = [
+        { path: "MyGame/RPG_RT.ldb", bytes: b("database") },
+        { path: "MyGame/RPG_RT.ini", bytes: b("[RPG_RT]\nGameTitle=Space Trip\n") },
+        { path: "MyGame/RPG_RT.exe", bytes: b("MZwindows") },
+        { path: "MyGame/harmony.dll", bytes: b("dll") },
+        { path: "MyGame/CharSet/hero.png", bytes: png(24, 32) },
+        { path: "MyGame/Title/title.png", bytes: png(320, 240) },
+    ];
+    const r = analyze(tree, engines, {});
+    const { entries } = r.engine.plan(r.detection, tree, {}, { launchTemplate });
+    const paths = [...entries.keys()];
+    const P = "Data/ports/spacetrip";
+    assert.ok(paths.includes(`${P}/RPG_RT.ldb`), "database kept");
+    assert.ok(paths.includes(`${P}/RPG_RT.ini`), "ini kept");
+    assert.ok(paths.includes(`${P}/CharSet/hero.png`), "assets kept");
+    assert.ok(!paths.includes(`${P}/RPG_RT.exe`), "Windows player stripped");
+    assert.ok(!paths.includes(`${P}/harmony.dll`), "Windows dll stripped");
+    assert.ok(paths.includes(`${P}/spacetrip.gptk`), "gptk emitted");
+    assert.ok(paths.includes("Roms/Ports (PORTS)/Space Trip.sh"), "launch script emitted");
+    assert.ok(paths.includes("Roms/Ports (PORTS)/.media/Space Trip.png"), "boxart from Title/");
+    const mf = JSON.parse(Buffer.from(entries.get("portforge.json")).toString());
+    assert.equal(mf.format, "portforge-port");
+    assert.equal(mf.slug, "spacetrip");
+    assert.equal(mf.script, "Space Trip.sh");
+    assert.equal(mf.boxart, "Space Trip.png");
+    assert.deepEqual(mf.shared, [], "no shared deps (RTP is in the runtime)");
+    ok("EasyRPG: plan keeps game data, strips Windows player, emits engine-agnostic port");
+}
+
 console.log(`\n${pass} checks passed.`);
