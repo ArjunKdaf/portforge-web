@@ -49,9 +49,11 @@ pm_platform_helper "$SOLARUS/solarus-1.6.5" >/dev/null
 # the port. Set HOME last so the PortMaster helpers above used the real HOME.
 export HOME="$GAMEDIR"
 
-# Run the quest: the .solarus package if shipped, else the extracted quest dir.
+# Run the quest fullscreen: the .solarus package if shipped, else the extracted
+# quest dir. -fullscreen=yes makes Solarus scale the quest's native drawing area
+# up to the device screen (default is windowed = tiny image in a corner).
 QUEST="$GAMEDIR/@SLUG@.solarus"
 [ -f "$QUEST" ] || QUEST="$GAMEDIR"
-"$SOLARUS/solarus-1.6.5" "$QUEST"
+"$SOLARUS/solarus-1.6.5" -fullscreen=yes "$QUEST"
 pf_cleanup
 pm_finish
