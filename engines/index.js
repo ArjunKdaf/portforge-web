@@ -3,8 +3,10 @@
 // the site a new engine; nothing else changes.
 import rgssLegacy from "./rgss-legacy.js";
 import easyrpg from "./easyrpg.js";
+import renpy from "./renpy.js";
 import rgss from "./rgss.js";
 
-// rgss is the RGSS catch-all (last); easyrpg is its own family (RPG_RT.ldb, no
-// RGSS ini) so it never collides — order among the others is cosmetic.
-export const engines = [rgssLegacy, easyrpg, rgss];
+// rgss is the RGSS catch-all (last). easyrpg (RPG_RT.ldb) and renpy (game/ with
+// .rpa/.rpyc — MODERN only; classic 6.x is detected and warned, not routed to a
+// separate engine) are their own families and never collide with RGSS.
+export const engines = [rgssLegacy, easyrpg, renpy, rgss];

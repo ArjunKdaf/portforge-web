@@ -1,0 +1,63 @@
+#!/bin/bash
+# Launch script for the shared Ren'Py runtime (bundled CPython + librenpython,
+# lifted from the PortMaster renpy_8.3.4 runtime). Mechanics mirror a proven
+# PortMaster Ren'Py port: mount the runtime squashfs onto renpy/, bind-mount the
+# game's game/ folder onto renpy/game, then run renpy/startRENPY (Ren'Py
+# auto-discovers <mount>/game — no CLI arg). gl4es (desktop-GL→GLES) is bundled
+# inside the runtime for the PowerVR GE8300. The port ships only game/.
+XDG_DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}
+if [ -d "/opt/system/Tools/PortMaster/" ]; then controlfolder="/opt/system/Tools/PortMaster"
+elif [ -d "/opt/tools/PortMaster/" ]; then controlfolder="/opt/tools/PortMaster"
+elif [ -d "$XDG_DATA_HOME/PortMaster/" ]; then controlfolder="$XDG_DATA_HOME/PortMaster"
+else controlfolder="/roms/ports/PortMaster"; fi
+source $controlfolder/control.txt
+[ -f "${controlfolder}/mod_${CFW_NAME}.txt" ] && source "${controlfolder}/mod_${CFW_NAME}.txt"
+get_controls
+
+GAMEDIR="/$directory/ports/@SLUG@"
+RENPY_RUNTIME="$controlfolder/libs/renpy.squashfs"
+renpydir="$GAMEDIR/renpy"
+cd "$GAMEDIR" || exit 1
+> "$GAMEDIR/log.txt" && exec > >(tee "$GAMEDIR/log.txt") 2>&1
+
+pf_cleanup() {
+    if [[ "$PM_CAN_MOUNT" != "N" ]]; then
+        $ESUDO umount "$renpydir/game" 2>/dev/null || $ESUDO umount -l "$renpydir/game" 2>/dev/null
+        $ESUDO umount "$renpydir" 2>/dev/null || $ESUDO umount -l "$renpydir" 2>/dev/null
+    fi
+}
+trap pf_cleanup EXIT INT TERM
+
+if [ ! -f "$RENPY_RUNTIME" ]; then pm_message "renpy runtime missing."; sleep 5; pm_finish; exit 1; fi
+$ESUDO mkdir -p "$renpydir"
+# clear any leaked mounts from a previous force-quit, then mount runtime + bind game/
+$ESUDO umount "$renpydir/game" 2>/dev/null || true
+$ESUDO umount "$renpydir" 2>/dev/null || $ESUDO umount -l "$renpydir" 2>/dev/null || true
+$ESUDO mount "$RENPY_RUNTIME" "$renpydir"
+sleep 2
+$ESUDO mount --bind "$GAMEDIR/game" "$renpydir/game"
+
+export SDL_GAMECONTROLLERCONFIG="$sdl_controllerconfig"
+export LD_LIBRARY_PATH="$renpydir/lib/py3-linux-aarch64:$LD_LIBRARY_PATH"
+export PYTHONHOME="$renpydir/lib/py3-linux-aarch64/../../"
+export PYTHONPATH="$renpydir/lib/python3.9"
+export RENPY_DISABLE_JOYSTICK=1
+export RENPY_LESS_MEMORY=1
+# keep saves on the card (writable FAT) instead of $HOME
+mkdir -p "$GAMEDIR/saves"
+export RENPY_PATH_TO_SAVES="$GAMEDIR/saves"
+
+# GLES path: gl4es (bundled in the runtime) translates Ren'Py's desktop-GL to
+# GLES2 for the PowerVR. Enabled when the CFW's libgl config sets LIBGL_FB.
+if [ -f "${controlfolder}/libgl_${CFW_NAME}.txt" ]; then source "${controlfolder}/libgl_${CFW_NAME}.txt"
+elif [ -f "${controlfolder}/libgl_default.txt" ]; then source "${controlfolder}/libgl_default.txt"; fi
+if [ -f "$renpydir/gl4es/libGL.so.1" ]; then
+    export SDL_VIDEO_GL_DRIVER="$renpydir/gl4es/libGL.so.1"
+    export SDL_VIDEO_EGL_DRIVER="$renpydir/gl4es/libEGL.so.1"
+fi
+
+pm_platform_helper "$renpydir/lib/py3-linux-aarch64/startRENPY"
+$GPTOKEYB "startRENPY" -c "$GAMEDIR/@SLUG@.gptk" &
+bash "$renpydir/startRENPY"
+pf_cleanup
+pm_finish

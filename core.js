@@ -61,6 +61,25 @@ function indexOfBytes(hay, needle) {
 /// computed once by the caller — notably `ctx.legacy` from the script
 /// fingerprint. Returns the first match with its detection + dependency
 /// checklist, or an `issue` explaining why nothing matched.
+/// Recognize common engines Port Forge does NOT support, so a drop can be named
+/// ("this is a Godot game") instead of a vague "no game found". Runs only after
+/// every supported engine has declined, so these fingerprints never shadow a
+/// supported game. Returns the engine label, or null.
+export function identifyEngine(tree) {
+    const has = (re) => tree.some((f) => re.test(f.path));
+    const KNOWN = [
+        ["Godot", () => has(/(^|\/)project\.godot$/i) || has(/\.pck$/i)],
+        ["GameMaker", () => has(/(^|\/)(data\.win|game\.unx|game\.droid)$/i)],
+        ["Unity", () => has(/(^|\/)UnityPlayer\.(dll|so)$/i) || has(/_Data\/(globalgamemanagers|resources\.assets|app\.info)/i)],
+        ["Wolf RPG", () => has(/\.wolf$/i)],
+        ["RPG Maker MV/MZ", () => has(/(^|\/)js\/(rpg_core|rmmz_core)\.js$/i) || has(/(^|\/)www\/(js|data)\//i)],
+        ["Adventure Game Studio", () => has(/(^|\/)acsetup\.cfg$/i) || has(/\.ags$/i)],
+        ["TyranoScript", () => has(/(^|\/)tyrano\//i) || has(/(^|\/)data\/scenario\/.+\.ks$/i)],
+    ];
+    for (const [name, test] of KNOWN) if (test()) return name;
+    return null;
+}
+
 export function analyze(tree, engines, ctx = {}) {
     for (const engine of engines) {
         const detection = engine.detect(tree, ctx);
@@ -68,10 +87,11 @@ export function analyze(tree, engines, ctx = {}) {
             return { engine, detection, deps: engine.dependencies(detection) };
         }
     }
-    const issue = looksInno(tree)
-        ? "inno"      // an installer we can't read — extract on PC first
-        : "unknown";  // no recognizable game found in the drop
-    return { engine: null, detection: null, deps: [], issue };
+    // Nothing supported claimed it: name a known-but-unsupported engine if we
+    // recognize one, else flag an inno installer, else generic unknown.
+    const unsupported = identifyEngine(tree);
+    const issue = looksInno(tree) ? "inno" : unsupported ? "unsupported" : "unknown";
+    return { engine: null, detection: null, deps: [], issue, unsupported: unsupported || null };
 }
 
 // --- RGSS script fingerprint (legacy vs modern) ------------------------------

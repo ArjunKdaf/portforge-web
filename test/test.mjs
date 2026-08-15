@@ -285,4 +285,117 @@ function makeRgssadV1(scriptsBlob) {
     ok("EasyRPG: plan keeps game data, strips Windows player, emits engine-agnostic port");
 }
 
+// --- 12: Ren'Py detected & routed by a game/ dir with .rpa/.rpyc ------------
+{
+    const tree = [
+        { path: "MyVN/game/script.rpyc", bytes: b("compiled") },
+        { path: "MyVN/game/options.rpy", bytes: b('define config.name = _("Test Novel")\n') },
+        { path: "MyVN/game/scripts.rpa", bytes: b("archive") },
+        { path: "MyVN/game/gui/main_menu.png", bytes: png(800, 600) },
+        { path: "MyVN/renpy/__init__.py", bytes: b("engine") },   // runtime provides this
+        { path: "MyVN/lib/py3-linux/renpy", bytes: b("bin") },    // stripped
+        { path: "MyVN/MyVN.exe", bytes: b("MZ") },                // stripped
+    ];
+    const r = analyze(tree, engines, {});
+    assert.equal(r.engine.id, "renpy", "game/ with .rpa/.rpyc → Ren'Py engine");
+    assert.equal(r.detection.title, "Test Novel", "title from options.rpy config.name");
+    assert.equal(r.detection.slug, "testnovel");
+    assert.equal(r.deps.length, 0, "runtime bundles the engine → no user deps");
+    assert.notEqual(r.engine.id, "easyrpg");
+    assert.notEqual(r.engine.id, "rgss");
+    ok("Ren'Py: game/ routes to renpy, title from options.rpy, no deps");
+}
+
+// --- 13: Ren'Py plan — ships only game/, strips the bundled engine ----------
+{
+    const tree = [
+        { path: "MyVN/game/script.rpyc", bytes: b("compiled") },
+        { path: "MyVN/game/options.rpy", bytes: b('define config.name = _("Test Novel")\n') },
+        { path: "MyVN/game/gui/main_menu.png", bytes: png(800, 600) },
+        { path: "MyVN/renpy/__init__.py", bytes: b("engine") },
+        { path: "MyVN/lib/py3-linux/renpy", bytes: b("bin") },
+        { path: "MyVN/MyVN.exe", bytes: b("MZ") },
+    ];
+    const r = analyze(tree, engines, {});
+    const { entries } = r.engine.plan(r.detection, tree, {}, { launchTemplate });
+    const paths = [...entries.keys()];
+    const P = "Data/ports/testnovel";
+    assert.ok(paths.includes(`${P}/game/script.rpyc`), "game scripts kept");
+    assert.ok(paths.includes(`${P}/game/gui/main_menu.png`), "game assets kept");
+    assert.ok(!paths.some((p) => p.includes("/renpy/__init__.py")), "bundled engine stripped");
+    assert.ok(!paths.some((p) => p.includes("/lib/")), "bundled lib stripped");
+    assert.ok(!paths.some((p) => p.endsWith(".exe")), "Windows launcher stripped");
+    assert.ok(paths.includes("Roms/Ports (PORTS)/Test Novel.sh"), "launch script emitted");
+    assert.ok(paths.includes("Roms/Ports (PORTS)/.media/Test Novel.png"), "boxart from game/gui/");
+    const mf = JSON.parse(Buffer.from(entries.get("portforge.json")).toString());
+    assert.equal(mf.slug, "testnovel");
+    assert.equal(mf.script, "Test Novel.sh");
+    assert.deepEqual(mf.shared, []);
+    ok("Ren'Py: plan ships only game/, strips the bundled engine, engine-agnostic port");
+}
+
+// --- 14: classic Ren'Py 6.x → modern engine WITH an "unsupported" warning ---
+{
+    const tree = [
+        { path: "OldVN/game/script.rpyc", bytes: b("compiled") },
+        { path: "OldVN/game/script_version.rpy", bytes: b("config.script_version = (6, 10, 2)\n") },
+        { path: "OldVN/game/options.rpy", bytes: b('define config.name = _("Old Novel")\n') },
+    ];
+    const r = analyze(tree, engines, {});
+    assert.equal(r.engine.id, "renpy", "only modern renpy engine exists now");
+    assert.equal(r.detection.title, "Old Novel");
+    const w = (r.detection.warnings || []).find((x) => /classic ren'py/i.test(x.title));
+    assert.ok(w, "classic 6.x is flagged unsupported");
+    ok("Ren'Py classic: 6.x detected → warned as unsupported (modern-only)");
+}
+
+// --- 15: modern Ren'Py (game/gui/, no old script_version) stays on renpy ----
+{
+    const tree = [
+        { path: "NewVN/game/script.rpyc", bytes: b("compiled") },
+        { path: "NewVN/game/gui/main_menu.png", bytes: png(1280, 720) },
+    ];
+    const r = analyze(tree, engines, {});
+    assert.equal(r.engine.id, "renpy", "game/gui/ + no 6.x version → modern renpy");
+    assert.equal(r.engine.runtime, "renpy");
+    ok("Ren'Py modern: game/gui/ routes to renpy (8.3.4)");
+}
+
+// --- 16: modern game that PACKS gui/ (no loose game/gui/) — lib/py3- is the tell
+{
+    const tree = [
+        { path: "SF-win/game/scripts.rpa", bytes: b("packed") },
+        { path: "SF-win/game/images.rpa", bytes: b("packed") },
+        { path: "SF-win/lib/py3-windows-x86_64/renpy.exe", bytes: b("bin") },
+        { path: "SF-win/SF.exe", bytes: b("MZ") },
+    ];
+    const r = analyze(tree, engines, {});
+    assert.equal(r.engine.id, "renpy", "packed-gui modern game routes to modern renpy via lib/py3-");
+    assert.equal(r.engine.runtime, "renpy");
+    ok("Ren'Py modern: packed gui/ but lib/py3- → modern (not mis-routed to legacy)");
+}
+
+// --- 17: unsupported engines are NAMED, not a vague "unknown" ---------------
+{
+    const godot = [{ path: "MyGame/project.godot", bytes: b("[application]") },
+                   { path: "MyGame/game.pck", bytes: b("GDPC") }];
+    let r = analyze(godot, engines, {});
+    assert.equal(r.engine, null);
+    assert.equal(r.issue, "unsupported");
+    assert.equal(r.unsupported, "Godot");
+
+    const gm = [{ path: "MyGame/data.win", bytes: b("FORM") }, { path: "MyGame/MyGame.exe", bytes: b("MZ") }];
+    r = analyze(gm, engines, {});
+    assert.equal(r.unsupported, "GameMaker");
+
+    const mv = [{ path: "MyGame/www/js/rpg_core.js", bytes: b("//") }, { path: "MyGame/www/data/Map001.json", bytes: b("{}") }];
+    r = analyze(mv, engines, {});
+    assert.equal(r.unsupported, "RPG Maker MV/MZ");
+
+    // a truly unknown drop is still "unknown", not a false-positive engine
+    r = analyze([{ path: "MyGame/readme.txt", bytes: b("hi") }], engines, {});
+    assert.equal(r.issue, "unknown");
+    ok("unsupported engines named (Godot/GameMaker/RM MV-MZ); unknown stays unknown");
+}
+
 console.log(`\n${pass} checks passed.`);

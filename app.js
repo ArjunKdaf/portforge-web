@@ -163,13 +163,18 @@ async function ingestGame(files) {
 }
 
 function renderResult() {
-    const { engine, detection, deps, issue } = state.result;
+    const { engine, detection, deps, issue, unsupported } = state.result;
     const box = $("checklist");
     if (!engine) {
-        box.innerHTML =
-            issue === "inno"
-                ? `<p class="warn">This looks like an <b>Inno Setup installer</b>. Extract it on your PC first (innoextract or 7-Zip), then drop the extracted game folder here.</p>`
-                : `<p class="warn">No recognizable game found. If it's an archive or installer, extract it first and drop the folder.</p>`;
+        let html;
+        if (issue === "inno") {
+            html = `<p class="warn">This looks like an <b>Inno Setup installer</b>. Extract it on your PC first (innoextract or 7-Zip), then drop the extracted game folder here.</p>`;
+        } else if (issue === "unsupported") {
+            html = `<p class="warn"><b>⚠ ${esc(unsupported)} game — not supported.</b> Port Forge doesn't support the ${esc(unsupported)} engine (yet). Supported engines: RPG Maker XP / VX / VX Ace, RPG Maker 2000 / 2003, and modern Ren'Py.</p>`;
+        } else {
+            html = `<p class="warn">No recognizable game found. If it's an archive or installer, extract it first and drop the folder.</p>`;
+        }
+        box.innerHTML = html;
         return;
     }
     const d = detection;
@@ -311,11 +316,13 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&l
 // ------------------------------------------------------------------- boot ----
 
 // The Supported-engines section is driven by the registry, so it can never
-// drift from what the site actually handles.
+// drift from what the site actually handles. Displayed alphabetically (a copy —
+// the registry keeps its detection order, where first match wins).
 function renderEngines() {
     $("engines").innerHTML =
         `<ul class="engine-list">` +
-        engines
+        [...engines]
+            .sort((a, b) => a.name.localeCompare(b.name))
             .map((e) => `<li>${esc(e.name)}${e.runtime ? ` — ${esc(e.runtime)}` : ""}</li>`)
             .join("") +
         `</ul>`;
