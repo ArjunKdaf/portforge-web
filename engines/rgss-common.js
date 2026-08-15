@@ -40,13 +40,10 @@ export const RTP_SHARED_DIR = ".rtp"; // sibling of the port dirs, under ports/
 export const rtpRef = (folder) => `../${RTP_SHARED_DIR}/${folder}`;
 
 const EXTRACT_STEPS = [
-    "Unzip the download — you'll get RTP*/Setup.exe + Setup-1.bin.",
-    "Extract Setup.exe with innoextract (NOT 7-Zip — the data is in the .bin):",
+    "Unzip the download — inside is Setup.exe plus a .bin holding the data.",
+    "Extract Setup.exe with innoextract.",
     "Drop the resulting folder (the one holding Graphics/ and Audio/) below.",
 ];
-const EXTRACT_CMD =
-    "cd RTP*/ && nix-shell -p innoextract --run 'innoextract Setup.exe'\n" +
-    "# not on Nix? install innoextract (constexpr.org/innoextract) then: innoextract Setup.exe";
 
 // --- ini parsing + detection helpers -----------------------------------------
 function parseIni(t) {
@@ -248,7 +245,6 @@ export function createRgssEngine(cfg) {
                 verified: r.verified,
                 provideAs: "folder",
                 extractSteps: EXTRACT_STEPS,
-                extractCmd: EXTRACT_CMD,
                 target: `ports/${RTP_SHARED_DIR}/${r.folder}`,
             }];
         },
