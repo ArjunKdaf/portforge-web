@@ -35,6 +35,12 @@ export LD_LIBRARY_PATH="$SOLARUS:$LD_LIBRARY_PATH"
 export PATH="$SOLARUS:$PATH"
 export LC_ALL=C
 export LANG=C
+# Pin the audio backend to ALSA. Solarus drives sound through OpenAL; on this
+# device OpenAL's pulse/pipewire path hotplug-thrashes ("default and only sink"
+# reconnect loop) and corrupts the heap within ~1s (malloc abort). ALSA is the
+# real backend here — force it and the thrash is gone.
+export ALSOFT_DRIVERS=alsa
+export SDL_AUDIODRIVER=alsa
 
 $GPTOKEYB "solarus-1.6.5" -c "$GAMEDIR/@SLUG@.gptk" &
 pm_platform_helper "$SOLARUS/solarus-1.6.5" >/dev/null
