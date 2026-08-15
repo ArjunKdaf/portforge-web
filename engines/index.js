@@ -4,9 +4,10 @@
 import rgssLegacy from "./rgss-legacy.js";
 import easyrpg from "./easyrpg.js";
 import renpy from "./renpy.js";
+import solarus from "./solarus.js";
 import rgss from "./rgss.js";
 
-// rgss is the RGSS catch-all (last). easyrpg (RPG_RT.ldb) and renpy (game/ with
-// .rpa/.rpyc — MODERN only; classic 6.x is detected and warned, not routed to a
-// separate engine) are their own families and never collide with RGSS.
-export const engines = [rgssLegacy, easyrpg, renpy, rgss];
+// rgss is the RGSS catch-all (last). easyrpg (RPG_RT.ldb), renpy (game/ with
+// .rpa/.rpyc — modern only), and solarus (.solarus / data/project_db.dat) are
+// their own families with distinct fingerprints — they never collide with RGSS.
+export const engines = [rgssLegacy, easyrpg, renpy, solarus, rgss];

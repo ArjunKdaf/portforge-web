@@ -398,4 +398,32 @@ function makeRgssadV1(scriptsBlob) {
     ok("unsupported engines named (Godot/GameMaker/RM MV-MZ); unknown stays unknown");
 }
 
+// --- 18: Solarus .solarus package routes to solarus -------------------------
+{
+    const tree = [{ path: "Mystery of Solarus DX/zsdx-v1.12.3.solarus", bytes: b("PKquestdata") }];
+    const r = analyze(tree, engines, {});
+    assert.equal(r.engine.id, "solarus", ".solarus → solarus engine");
+    assert.equal(r.detection.title, "Mystery of Solarus DX");
+    assert.equal(r.detection.questKind, "package");
+    const { entries } = r.engine.plan(r.detection, tree, {}, { launchTemplate });
+    const paths = [...entries.keys()];
+    assert.ok(paths.includes("Data/ports/mysteryofsolarusdx/mysteryofsolarusdx.solarus"), "ships .solarus as <slug>.solarus");
+    assert.ok(paths.includes("Roms/Ports (PORTS)/Mystery of Solarus DX.sh"));
+    ok("Solarus: .solarus package routes to solarus, shipped as <slug>.solarus");
+}
+
+// --- 19: Solarus extracted quest dir (data/project_db.dat) ------------------
+{
+    const tree = [
+        { path: "MyQuest/data/project_db.dat", bytes: b("db") },
+        { path: "MyQuest/data/maps/1.dat", bytes: b("map") },
+    ];
+    const r = analyze(tree, engines, {});
+    assert.equal(r.engine.id, "solarus", "extracted quest → solarus");
+    assert.equal(r.detection.questKind, "dir");
+    const { entries } = r.engine.plan(r.detection, tree, {}, { launchTemplate });
+    assert.ok([...entries.keys()].includes("Data/ports/myquest/data/project_db.dat"), "ships the data/ quest tree");
+    ok("Solarus: extracted quest dir routes to solarus, ships data/");
+}
+
 console.log(`\n${pass} checks passed.`);

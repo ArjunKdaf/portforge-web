@@ -1,0 +1,51 @@
+#!/bin/bash
+# Launch script for the Solarus runtime (GPLv3, SDL2 action-RPG engine). Shared
+# runtime lifted from the PortMaster solarus-1.6.5 runtime; the squashfs bundles
+# solarus-1.6.5 + libsolarus + libluajit + libphysfs + libmodplug. SDL2 /
+# SDL2_image / SDL2_ttf / openal / vorbis / libstdc++ come from the device.
+# Solarus renders through SDL2's renderer (no gl4es). The port ships only the
+# `.solarus` quest; solarus takes it directly.
+XDG_DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}
+if [ -d "/opt/system/Tools/PortMaster/" ]; then controlfolder="/opt/system/Tools/PortMaster"
+elif [ -d "/opt/tools/PortMaster/" ]; then controlfolder="/opt/tools/PortMaster"
+elif [ -d "$XDG_DATA_HOME/PortMaster/" ]; then controlfolder="$XDG_DATA_HOME/PortMaster"
+else controlfolder="/roms/ports/PortMaster"; fi
+source $controlfolder/control.txt
+[ -f "${controlfolder}/mod_${CFW_NAME}.txt" ] && source "${controlfolder}/mod_${CFW_NAME}.txt"
+get_controls
+
+GAMEDIR="/$directory/ports/@SLUG@"
+SOLARUS_RUNTIME="$controlfolder/libs/solarus.squashfs"
+SOLARUS="$HOME/solarus"
+cd "$GAMEDIR" || exit 1
+> "$GAMEDIR/log.txt" && exec > >(tee "$GAMEDIR/log.txt") 2>&1
+
+pf_cleanup() {
+    $ESUDO umount "$SOLARUS" 2>/dev/null || $ESUDO umount -l "$SOLARUS" 2>/dev/null
+}
+trap pf_cleanup EXIT INT TERM
+
+if [ ! -f "$SOLARUS_RUNTIME" ]; then pm_message "solarus runtime missing."; sleep 5; pm_finish; exit 1; fi
+$ESUDO mkdir -p "$SOLARUS"
+$ESUDO umount "$SOLARUS" 2>/dev/null || $ESUDO umount -l "$SOLARUS" 2>/dev/null || true
+$ESUDO mount "$SOLARUS_RUNTIME" "$SOLARUS"
+
+export SDL_GAMECONTROLLERCONFIG="$sdl_controllerconfig"
+export LD_LIBRARY_PATH="$SOLARUS:$LD_LIBRARY_PATH"
+export PATH="$SOLARUS:$PATH"
+export LC_ALL=C
+export LANG=C
+
+$GPTOKEYB "solarus-1.6.5" -c "$GAMEDIR/@SLUG@.gptk" &
+pm_platform_helper "$SOLARUS/solarus-1.6.5" >/dev/null
+
+# Solarus saves to $HOME/.solarus/<quest write_dir>; keep them on the card with
+# the port. Set HOME last so the PortMaster helpers above used the real HOME.
+export HOME="$GAMEDIR"
+
+# Run the quest: the .solarus package if shipped, else the extracted quest dir.
+QUEST="$GAMEDIR/@SLUG@.solarus"
+[ -f "$QUEST" ] || QUEST="$GAMEDIR"
+"$SOLARUS/solarus-1.6.5" "$QUEST"
+pf_cleanup
+pm_finish
