@@ -137,6 +137,29 @@ function detectWarnings(tree, gameRoot) {
     return w;
 }
 
+/// RGSS1 (RPG Maker XP) and RGSS2 (VX) are Ruby 1.8 engines; RGSS3 (VX Ace) is
+/// Ruby 1.9. The device runtimes — mkxp-z (Ruby 3.1) and falcon-mkxp (Ruby 2.7)
+/// — can't run Ruby-1.8-specific script code, so a classic game whose scripts
+/// rely on Ruby 1.8 idioms won't boot, even though plain RGSS1/2 games and
+/// modernized (Ruby-3.1-ready) ones run fine. A game that bundles its own
+/// mkxp.json is already packaged for a modern runtime, so it's exempt. Not a
+/// hard block — a heads-up before the user builds.
+function ruby18Warning(d) {
+    if (d.ownConfig) return null;
+    if (d.rgssVersion !== 1 && d.rgssVersion !== 2) return null;
+    const kind = d.rgssVersion === 1 ? "XP" : "VX";
+    return {
+        level: "warning",
+        title: "Classic Ruby 1.8 game — may not run yet",
+        detail:
+            `This is a classic RPG Maker ${kind} (RGSS${d.rgssVersion}, Ruby 1.8) game ` +
+            "that doesn't bundle a modern runtime. The device runtime is mkxp-z " +
+            "(Ruby 3.1), which can't run Ruby-1.8-specific script code, so games " +
+            "that rely on it won't boot. Plain RPG Maker games usually still run. " +
+            "A Ruby 1.8 runtime is planned; until then this port may not work.",
+    };
+}
+
 /// Engine-neutral RGSS detection: does the tree hold an RGSS game, and what is
 /// it? Returns the shared detection facts (no engine identity) or null.
 export function baseDetect(tree) {
@@ -207,7 +230,10 @@ export function createRgssEngine(cfg) {
             const d = baseDetect(tree);
             if (!d) return null;
             if (!cfg.claims(d, ctx || {})) return null;
-            return { ...d, engineId: cfg.id, warnings: detectWarnings(tree, d.gameRoot) };
+            const warnings = detectWarnings(tree, d.gameRoot);
+            const r18 = ruby18Warning(d);
+            if (r18) warnings.push(r18);
+            return { ...d, engineId: cfg.id, warnings };
         },
 
         dependencies(d) {

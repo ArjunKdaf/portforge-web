@@ -426,4 +426,40 @@ function makeRgssadV1(scriptsBlob) {
     ok("Solarus: extracted quest dir routes to solarus, ships data/");
 }
 
+// --- 20: classic RGSS1 without mkxp.json -> Ruby 1.8 warning ----------------
+{
+    const tree = [
+        { path: "ClassicXPGame/Game.ini", bytes: b("[Game]\r\nLibrary=RGSS102E.dll\r\nTitle=Classic Game\r\n") },
+        { path: "ClassicXPGame/Game.rgssad", bytes: b("PKfakearchive") },
+    ];
+    const r = analyze(tree, engines, {});
+    assert.equal(r.engine.id, "rgss");
+    const w = (r.detection.warnings || []).find((x) => /ruby 1\.8/i.test(x.title));
+    assert.ok(w, "classic RGSS1 without mkxp.json warns about Ruby 1.8");
+    ok("RGSS: classic Ruby 1.8 game (RGSS1, no mkxp.json) warns");
+}
+
+// --- 21: same but ships its own mkxp.json (modern package) -> no warning ----
+{
+    const tree = [
+        { path: "Modern/Game.ini", bytes: b("[Game]\r\nLibrary=RGSS102E.dll\r\nTitle=Modern\r\n") },
+        { path: "Modern/mkxp.json", bytes: b("{ }") },
+    ];
+    const r = analyze(tree, engines, {});
+    const w = (r.detection.warnings || []).find((x) => /ruby 1\.8/i.test(x.title));
+    assert.ok(!w, "a game bundling mkxp.json is exempt from the Ruby 1.8 warning");
+    ok("RGSS: modern package (ships mkxp.json) gets no Ruby 1.8 warning");
+}
+
+// --- 22: RGSS3 (VX Ace, Ruby 1.9) -> no Ruby 1.8 warning --------------------
+{
+    const tree = [
+        { path: "Ace/Game.ini", bytes: b("[Game]\r\nLibrary=RGSS301.dll\r\nTitle=Ace\r\n") },
+    ];
+    const r = analyze(tree, engines, {});
+    const w = (r.detection.warnings || []).find((x) => /ruby 1\.8/i.test(x.title));
+    assert.ok(!w, "RGSS3 is Ruby 1.9 — no Ruby 1.8 warning");
+    ok("RGSS: VX Ace (RGSS3) gets no Ruby 1.8 warning");
+}
+
 console.log(`\n${pass} checks passed.`);
