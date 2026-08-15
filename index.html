@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Port Forge</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>Port&nbsp;Forge</h1>
+        <p class="tag">Turn a PC game into a PortMaster-ready port, in your browser. Nothing is uploaded — it all runs locally.</p>
+    </header>
+
+    <main>
+        <section>
+            <h2>Supported engines</h2>
+            <div id="engines"></div>
+        </section>
+
+        <section>
+            <h2>1 · Drop your game</h2>
+            <div class="drop" id="game">
+                <span>Drag your extracted game <b>folder</b> here</span>
+                <div class="browse">
+                    <button id="browseFolder" type="button">Browse folder…</button>
+                </div>
+                <input type="file" id="gameFolderInput" webkitdirectory hidden>
+            </div>
+            <p class="dim">Folders only — if your game is a .zip or installer, extract it on your PC first.</p>
+        </section>
+
+        <section>
+            <h2>2 · Dependencies</h2>
+            <div id="checklist"><p class="dim">Drop a game to see what it needs.</p></div>
+        </section>
+
+        <section>
+            <h2>3 · Assemble</h2>
+            <button id="assemble" disabled>Build port .zip</button>
+            <p class="dim">Extract the zip, copy the folder to your device, then open Port Forge and select it — it installs into Ports.</p>
+        </section>
+
+        <pre id="log" aria-live="polite"></pre>
+    </main>
+
+    <div id="busy" class="busy" role="status" aria-live="polite" hidden>
+        <span class="spinner" id="busySpin" aria-hidden="true"></span>
+        <span id="busyMsg">Working…</span>
+        <div class="bar" id="busyBar" hidden><div class="fill" id="busyFill"></div></div>
+        <button id="busyCancel" type="button" hidden>Cancel</button>
+    </div>
+
+    <script src="vendor/fflate.min.js"></script>
+    <script type="module" src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,62 @@
+#!/bin/bash
+XDG_DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}
+if [ -d "/opt/system/Tools/PortMaster/" ]; then controlfolder="/opt/system/Tools/PortMaster"
+elif [ -d "/opt/tools/PortMaster/" ]; then controlfolder="/opt/tools/PortMaster"
+elif [ -d "$XDG_DATA_HOME/PortMaster/" ]; then controlfolder="$XDG_DATA_HOME/PortMaster"
+else controlfolder="/roms/ports/PortMaster"; fi
+source $controlfolder/control.txt
+[ -f "${controlfolder}/mod_${CFW_NAME}.txt" ] && source "${controlfolder}/mod_${CFW_NAME}.txt"
+get_controls
+GAMEDIR="/$directory/ports/@SLUG@"
+MKXPZ_RUNTIME="$controlfolder/libs/mkxp-z.squashfs"
+MKXPZ="$HOME/mkxp-z"
+cd "$GAMEDIR" || exit 1
+> "$GAMEDIR/log.txt" && exec > >(tee "$GAMEDIR/log.txt") 2>&1
+# A force-quit (kui_portrun kills the process group) skips normal cleanup,
+# leaking the stdlib bind + squashfs mounts and hanging the NEXT launch.
+# Trap our own exit for the graceful case, and defensively clear any leaked
+# mounts BEFORE mounting (unmount the bind first so the squashfs frees).
+pf_cleanup() {
+    $ESUDO umount "$GAMEDIR/stdlib" 2>/dev/null || $ESUDO umount -l "$GAMEDIR/stdlib" 2>/dev/null
+    $ESUDO umount "$MKXPZ" 2>/dev/null || $ESUDO umount -l "$MKXPZ" 2>/dev/null
+    [ -n "$SWAP" ] && $ESUDO swapoff "$SWAP" 2>/dev/null
+}
+trap pf_cleanup EXIT INT TERM
+$ESUDO umount "$GAMEDIR/stdlib" 2>/dev/null || $ESUDO umount -l "$GAMEDIR/stdlib" 2>/dev/null || true
+if [ -f "$MKXPZ_RUNTIME" ]; then
+    $ESUDO mkdir -p "$MKXPZ"
+    $ESUDO umount "$MKXPZ" 2>/dev/null || $ESUDO umount -l "$MKXPZ" 2>/dev/null || true
+    $ESUDO mount "$MKXPZ_RUNTIME" "$MKXPZ"
+else
+    pm_message "mkxp-z runtime missing."; sleep 5; pm_finish; exit 1
+fi
+mkdir -p "$GAMEDIR/config"
+[ -L "$GAMEDIR/stdlib" ] && rm -f "$GAMEDIR/stdlib"
+[ -e "$GAMEDIR/stdlib" ] && [ ! -L "$GAMEDIR/stdlib" ] && rm -rf "$GAMEDIR/stdlib" 2>/dev/null
+bind_directories "$GAMEDIR/stdlib" "$MKXPZ/stdlib"
+export SDL_GAMECONTROLLERCONFIG="$sdl_controllerconfig"
+export XDG_DATA_HOME="$GAMEDIR/config"
+export LC_ALL=C
+export LANG=C
+# Some RGSS games OOM-kill mkxp-z on low-RAM handhelds without swap.
+# Find a writable non-FAT partition and share ONE 2GB swapfile across all
+# Port Forge games. FAT/exFAT candidates fail mkswap/swapon and are skipped.
+SWAP=""
+for d in /mnt/UDISK /userdata /storage /mnt/mmc /roms2; do
+    { [ -d "$d" ] && touch "$d/.pfsw" 2>/dev/null; } || continue
+    rm -f "$d/.pfsw"
+    cand="$d/portforge.swap"
+    if [ ! -f "$cand" ]; then
+        $ESUDO dd if=/dev/zero of="$cand" bs=1M count=2048 2>/dev/null
+        $ESUDO chmod 600 "$cand"
+        $ESUDO mkswap "$cand" >/dev/null 2>&1 || { $ESUDO rm -f "$cand"; continue; }
+    fi
+    $ESUDO swapon "$cand" 2>/dev/null && { SWAP="$cand"; break; }
+done
+$GPTOKEYB "mkxp-z.aarch64" -c "$GAMEDIR/@SLUG@.gptk" &
+export LD_LIBRARY_PATH="$MKXPZ/libs:$LD_LIBRARY_PATH"
+export SRCDIR="$GAMEDIR"
+pm_platform_helper "$MKXPZ/mkxp-z.aarch64" >/dev/null
+"$MKXPZ/mkxp-z.aarch64"
+pf_cleanup
+pm_finish
