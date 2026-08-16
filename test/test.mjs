@@ -462,4 +462,35 @@ function makeRgssadV1(scriptsBlob) {
     ok("RGSS: VX Ace (RGSS3) gets no Ruby 1.8 warning");
 }
 
+// --- TheXTech: complete asset package routes to thextech -------------------
+{
+    const tree = [
+        { path: "AoD/gameinfo.ini", bytes: b('[game]\ntitle="Adventures of Demo"\nid="aod"\n') },
+        { path: "AoD/graphics/player/hero.png", bytes: b("PNG") },
+        { path: "AoD/adventure/world.wldx", bytes: b("world") },
+    ];
+    const r = analyze(tree, engines, {});
+    assert.equal(r.engine.id, "thextech", "gameinfo.ini + graphics/ → thextech");
+    assert.equal(r.detection.title, "Adventures of Demo");
+    assert.equal(r.detection.slug, "adventuresofdemo");
+    const { entries } = r.engine.plan(r.detection, tree, {}, { launchTemplate });
+    const paths = [...entries.keys()];
+    assert.ok(paths.includes("Data/ports/adventuresofdemo/gameinfo.ini"));
+    assert.ok(paths.includes("Data/ports/adventuresofdemo/graphics/player/hero.png"));
+    assert.ok(paths.includes("Data/ports/adventuresofdemo/adventure/world.wldx"));
+    assert.ok(paths.includes("Roms/Ports (PORTS)/Adventures of Demo.sh"));
+    ok("TheXTech: complete asset package routes to thextech, ships the game folder");
+}
+
+// --- TheXTech: gameinfo.ini WITHOUT graphics/ is not claimed (bare episode) -
+{
+    const tree = [
+        { path: "Bare/gameinfo.ini", bytes: b('[game]\ntitle="Bare"\n') },
+        { path: "Bare/world.wld", bytes: b("w") },
+    ];
+    const r = analyze(tree, engines, {});
+    assert.notEqual(r.engine && r.engine.id, "thextech", "no graphics/ → not a complete pack");
+    ok("TheXTech: gameinfo.ini without graphics/ is not claimed");
+}
+
 console.log(`\n${pass} checks passed.`);

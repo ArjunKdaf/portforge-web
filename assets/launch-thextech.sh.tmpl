@@ -1,0 +1,44 @@
+#!/bin/bash
+# Launch script for the TheXTech runtime (GPLv3, SDL2) — an open-source 2D
+# platformer engine. The shared runtime squashfs carries the engine binary + thextech.ini
+# (force-portable) + settings/controls.ini (device pad profile). The port ships a
+# complete TheXTech asset-package game (graphics/ music/ sound/ + its worlds).
+#
+# force-portable means the engine resolves its assets from its OWN directory, so
+# we materialize the engine into the game dir on first launch, then run it there
+# (base dir = the game). Native SDL gamepad input via the bundled controls.ini;
+# gptokeyb runs only as a menu-key fallback.
+XDG_DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}
+if [ -d "/opt/system/Tools/PortMaster/" ]; then controlfolder="/opt/system/Tools/PortMaster"
+elif [ -d "/opt/tools/PortMaster/" ]; then controlfolder="/opt/tools/PortMaster"
+elif [ -d "$XDG_DATA_HOME/PortMaster/" ]; then controlfolder="$XDG_DATA_HOME/PortMaster"
+else controlfolder="/roms/ports/PortMaster"; fi
+source $controlfolder/control.txt
+[ -f "${controlfolder}/mod_${CFW_NAME}.txt" ] && source "${controlfolder}/mod_${CFW_NAME}.txt"
+get_controls
+
+GAMEDIR="/$directory/ports/@SLUG@"
+TX_RUNTIME="$controlfolder/libs/thextech.squashfs"
+TX="$HOME/thextech"
+cd "$GAMEDIR" || exit 1
+> "$GAMEDIR/log.txt" && exec > >(tee "$GAMEDIR/log.txt") 2>&1
+
+if [ ! -f "$TX_RUNTIME" ]; then pm_message "thextech runtime missing."; sleep 5; pm_finish; exit 1; fi
+$ESUDO mkdir -p "$TX"
+$ESUDO umount "$TX" 2>/dev/null || $ESUDO umount -l "$TX" 2>/dev/null || true
+$ESUDO mount "$TX_RUNTIME" "$TX"
+# materialize the engine into the game dir (force-portable base = exe dir)
+cp -f "$TX/thextech" "$GAMEDIR/thextech" && chmod +x "$GAMEDIR/thextech"
+[ -f "$GAMEDIR/thextech.ini" ] || cp -f "$TX/thextech.ini" "$GAMEDIR/thextech.ini"
+[ -d "$GAMEDIR/settings" ] || cp -rf "$TX/settings" "$GAMEDIR/"
+$ESUDO umount "$TX" 2>/dev/null || $ESUDO umount -l "$TX" 2>/dev/null
+
+export SDL_GAMECONTROLLERCONFIG="$sdl_controllerconfig"
+export LC_ALL=C
+export LANG=C
+
+$GPTOKEYB "thextech" &
+pm_platform_helper "$GAMEDIR/thextech" >/dev/null
+cd "$GAMEDIR"
+./thextech
+pm_finish
